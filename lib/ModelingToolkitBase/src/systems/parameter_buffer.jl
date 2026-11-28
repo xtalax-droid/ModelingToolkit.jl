@@ -632,10 +632,10 @@ function restore_static_buffers(oldbufs::Tuple, newbufs::Tuple)
     end
 end
 
-# If `keep_untouched`, an old value whose type is not a subtype of the narrowed type widens the
-# buffer to a `Union` instead of being converted (and possibly rounded) into it. This is for
-# the constants buffer, whose entries are whole parameters. `tunable`, `initials` and `discrete`
-# are flat numeric vectors consumed as one array by solvers and always take a single type.
+# If `keep_untouched`, the narrowed type is promoted with the type of every untouched old value so
+# that none of them is converted (and possibly rounded) into a narrower type. This is for the
+# constants buffer, whose entries are whole parameters. `tunable`, `initials` and `discrete` are
+# flat numeric vectors consumed as one array by solvers and keep the narrowed type.
 function narrow_buffer_type_and_fallback_undefs(
         oldbuf::AbstractVector, newbuf::AbstractVector; keep_untouched = false
     )
@@ -649,7 +649,9 @@ function narrow_buffer_type_and_fallback_undefs(
     elseif keep_untouched
         for i in eachindex(newbuf)
             isassigned(newbuf, i) && continue
-            typeof(oldbuf[i]) <: type || (type = Union{type, typeof(oldbuf[i])})
+            typeof(oldbuf[i]) <: type && continue
+            promoted = promote_type(type, typeof(oldbuf[i]))
+            promoted === Any || (type = promoted)
         end
     end
     newerbuf = similar(newbuf, type)

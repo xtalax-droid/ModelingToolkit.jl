@@ -621,12 +621,15 @@ end
         newps = remake_buffer(sys, ps, [B], Any[fill(1.0f0, 2, 2)])
         @test getp(sys, A)(newps) isa Matrix{Float64}
         @test getp(sys, A)(newps) == fill(val, 2, 2)
-        @test getp(sys, B)(newps) isa Matrix{Float32}
         @test getp(sys, B)(newps) == fill(1.0f0, 2, 2)
+        setp(sys, B)(newps, fill(2, 2, 2))
+        @test getp(sys, B)(newps) == fill(2.0, 2, 2)
 
         newps = remake_buffer(sys, ps, [s2], Any[1.0f0])
         @test getp(sys, s1)(newps) isa Float64
         @test getp(sys, s1)(newps) == val
-        @test getp(sys, s2)(newps) isa Float32
+        @test getp(sys, s2)(newps) == 1.0f0
+        setp(sys, s2)(newps, 2)
+        @test getp(sys, s2)(newps) == 2.0
     end
 end
