@@ -636,4 +636,13 @@ end
     ps = MTKParameters(sys, [A => ones(2, 2), B => ones(2, 2), s1 => 1.0, s2 => 1.0, x => 1.0])
     newps = remake_buffer(sys, ps, [s2], Any[2^53 + 1])
     @test getp(sys, s2)(newps) == 2^53 + 1
+    # a replacement is not rounded to the active BigFloat precision
+    @parameters b1::BigFloat [tunable = false] b2::BigFloat [tunable = false]
+    @named bsys = System([D(x) ~ b1 + b2], t)
+    bsys = complete(bsys)
+    ps = MTKParameters(bsys, [b1 => big(2.0), b2 => big(3.0), x => 1.0])
+    newps = setprecision(BigFloat, 8) do
+        remake_buffer(bsys, ps, [b2], Any[1 + eps(Float64)])
+    end
+    @test getp(bsys, b2)(newps) == 1 + eps(Float64)
 end
