@@ -606,3 +606,27 @@ end
     ps = MTKParameters(sys, Dict(r[1] => 1.0, q => 1.0, p => 2 * r[1]))
     @test ps isa MTKParameters
 end
+
+@testset "`remake_buffer` keeps untouched constants" begin
+    @parameters A[1:2, 1:2]::Float64 [tunable = false] B[1:2, 1:2]::Float64 [tunable = false]
+    @parameters s1::Float64 [tunable = false] s2::Float64 [tunable = false]
+    @variables x(t)
+    @named sys = System([D(x) ~ sum(A) * x + sum(B) + s1 + s2], t)
+    sys = complete(sys)
+    for val in (1 + eps(Float64), Float64(pi))
+        ps = MTKParameters(
+            sys, [A => fill(val, 2, 2), B => ones(2, 2), s1 => val, s2 => 1.0, x => 1.0]
+        )
+
+        newps = remake_buffer(sys, ps, [B], Any[fill(1.0f0, 2, 2)])
+        @test getp(sys, A)(newps) isa Matrix{Float64}
+        @test getp(sys, A)(newps) == fill(val, 2, 2)
+        @test getp(sys, B)(newps) isa Matrix{Float32}
+        @test getp(sys, B)(newps) == fill(1.0f0, 2, 2)
+
+        newps = remake_buffer(sys, ps, [s2], Any[1.0f0])
+        @test getp(sys, s1)(newps) isa Float64
+        @test getp(sys, s1)(newps) == val
+        @test getp(sys, s2)(newps) isa Float32
+    end
+end

@@ -632,8 +632,12 @@ function restore_static_buffers(oldbufs::Tuple, newbufs::Tuple)
     end
 end
 
+# If `keep_untouched`, an old value whose type is not a subtype of the narrowed type widens the
+# buffer to a `Union` instead of being converted (and possibly rounded) into it. This is for
+# the constants buffer, whose entries are whole parameters. `tunable`, `initials` and `discrete`
+# are flat numeric vectors consumed as one array by solvers and always take a single type.
 function narrow_buffer_type_and_fallback_undefs(
-        oldbuf::AbstractVector, newbuf::AbstractVector
+        oldbuf::AbstractVector, newbuf::AbstractVector; keep_untouched = false
     )
     type = Union{}
     for i in eachindex(newbuf)
@@ -642,6 +646,11 @@ function narrow_buffer_type_and_fallback_undefs(
     end
     if type == Union{}
         type = eltype(oldbuf)
+    elseif keep_untouched
+        for i in eachindex(newbuf)
+            isassigned(newbuf, i) && continue
+            typeof(oldbuf[i]) <: type || (type = Union{type, typeof(oldbuf[i])})
+        end
     end
     newerbuf = similar(newbuf, type)
     for i in eachindex(newbuf)
@@ -852,7 +861,7 @@ function __remake_buffer(indp, oldbuf::MTKParameters, idxs, vals; validate = tru
         oldbuf.discrete, newbuf.discrete
     )
     @set! newbuf.constant = narrow_buffer_type_and_fallback_undefs.(
-        oldbuf.constant, newbuf.constant
+        oldbuf.constant, newbuf.constant; keep_untouched = true
     )
     for (oldv, newv) in zip(oldbuf.nonnumeric, newbuf.nonnumeric)
         for i in eachindex(oldv)
