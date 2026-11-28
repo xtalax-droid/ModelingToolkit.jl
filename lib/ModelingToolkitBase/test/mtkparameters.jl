@@ -1,6 +1,7 @@
 using ModelingToolkitBase
 using ModelingToolkitBase: t_nounits as t, D_nounits as D, MTKParameters
 using SymbolicIndexingInterface, StaticArrays
+using LinearAlgebra: Diagonal, I
 using SciMLStructures: SciMLStructures, canonicalize, Tunable, Discrete, Constants
 using ModelingToolkitStandardLibrary.Electrical, ModelingToolkitStandardLibrary.Blocks
 using BlockArrays: BlockedArray, BlockedVector, Block
@@ -645,4 +646,12 @@ end
         remake_buffer(bsys, ps, [b2], Any[1 + eps(Float64)])
     end
     @test getp(bsys, b2)(newps) == 1 + eps(Float64)
+    # different array wrappers are not promoted (that would give an abstract buffer type)
+    @parameters D1[1:2, 1:2]::Float64 [tunable = false] D2[1:2, 1:2]::Float64 [tunable = false]
+    @named dsys = System([D(x) ~ sum(D1) + sum(D2)], t)
+    dsys = complete(dsys)
+    ps = MTKParameters(dsys, [D1 => Matrix(1.0I, 2, 2), D2 => Matrix(1.0I, 2, 2), x => 1.0])
+    newps = remake_buffer(dsys, ps, [D2], Any[Diagonal(ones(Float32, 2))])
+    @test all(isconcretetype ∘ eltype, newps.constant)
+    @test getp(dsys, D1)(newps) == Matrix(1.0I, 2, 2)
 end
