@@ -647,11 +647,21 @@ end
     end
     @test getp(bsys, b2)(newps) == 1 + eps(Float64)
     # different array wrappers are not promoted (that would give an abstract buffer type)
-    @parameters D1[1:2, 1:2]::Float64 [tunable = false] D2[1:2, 1:2]::Float64 [tunable = false]
-    @named dsys = System([D(x) ~ sum(D1) + sum(D2)], t)
-    dsys = complete(dsys)
-    ps = MTKParameters(dsys, [D1 => Matrix(1.0I, 2, 2), D2 => Matrix(1.0I, 2, 2), x => 1.0])
-    newps = remake_buffer(dsys, ps, [D2], Any[Diagonal(ones(Float32, 2))])
-    @test all(isconcretetype ∘ eltype, newps.constant)
-    @test getp(dsys, D1)(newps) == Matrix(1.0I, 2, 2)
+    # Base copies the untouched matrix into the `Diagonal{Float32}` buffer, which needs
+    # `convert(Diagonal{Float32}, ::Matrix{Float64})`; Julia 1.10 does not define it.
+    diag_convertible = try
+        convert(Diagonal{Float32, Vector{Float32}}, Matrix(1.0I, 2, 2))
+        true
+    catch
+        false
+    end
+    if diag_convertible
+        @parameters D1[1:2, 1:2]::Float64 [tunable = false] D2[1:2, 1:2]::Float64 [tunable = false]
+        @named dsys = System([D(x) ~ sum(D1) + sum(D2)], t)
+        dsys = complete(dsys)
+        ps = MTKParameters(dsys, [D1 => Matrix(1.0I, 2, 2), D2 => Matrix(1.0I, 2, 2), x => 1.0])
+        newps = remake_buffer(dsys, ps, [D2], Any[Diagonal(ones(Float32, 2))])
+        @test all(isconcretetype ∘ eltype, newps.constant)
+        @test getp(dsys, D1)(newps) == Matrix(1.0I, 2, 2)
+    end
 end
