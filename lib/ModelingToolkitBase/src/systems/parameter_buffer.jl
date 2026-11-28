@@ -632,7 +632,9 @@ function restore_static_buffers(oldbufs::Tuple, newbufs::Tuple)
     end
 end
 
-# If `keep_untouched`, the narrowed type is promoted with the type of every untouched old value so
+_is_float_type(::Type{T}) where {T} = (T <: AbstractArray ? eltype(T) : T) <: AbstractFloat
+
+# If `keep_untouched`, the narrowed type is promoted with the type of every untouched old value, when both are floating point, so
 # that none of them is converted (and possibly rounded) into a narrower type. This is for the
 # constants buffer, whose entries are whole parameters. `tunable`, `initials` and `discrete` are
 # flat numeric vectors consumed as one array by solvers and keep the narrowed type.
@@ -650,8 +652,9 @@ function narrow_buffer_type_and_fallback_undefs(
         for i in eachindex(newbuf)
             isassigned(newbuf, i) && continue
             typeof(oldbuf[i]) <: type && continue
-            promoted = promote_type(type, typeof(oldbuf[i]))
-            promoted === Any || (type = promoted)
+            # Only floating point widening is exact; integer replacements keep the narrowed type.
+            _is_float_type(type) && _is_float_type(typeof(oldbuf[i])) || continue
+            type = promote_type(type, typeof(oldbuf[i]))
         end
     end
     newerbuf = similar(newbuf, type)

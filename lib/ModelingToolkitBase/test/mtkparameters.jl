@@ -632,4 +632,8 @@ end
         setp(sys, s2)(newps, 2)
         @test getp(sys, s2)(newps) == 2.0
     end
+    # integer replacements are not promoted into the float type of untouched constants
+    ps = MTKParameters(sys, [A => ones(2, 2), B => ones(2, 2), s1 => 1.0, s2 => 1.0, x => 1.0])
+    newps = remake_buffer(sys, ps, [s2], Any[2^53 + 1])
+    @test getp(sys, s2)(newps) == 2^53 + 1
 end
